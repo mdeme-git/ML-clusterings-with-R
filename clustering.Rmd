@@ -1,0 +1,851 @@
+---
+header-includes:
+- \usepackage{tikz}
+- \usepackage{pgfplots}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhead[LO,RE]{Sujet 6 - GIS 4}
+- \renewcommand\footrulewidth{0.1pt}
+- \fancyfoot[L]{Projet Statistique 2020 - GIS4}
+- \fancyfoot[C]{\thepage}
+- \fancyfoot[R]{MD - AF}
+output:
+  pdf_document:
+    fig_caption: yes
+    latex_engine: xelatex
+    number_sections: yes
+    toc_depth: 4
+  word_document:
+    toc_depth: '4'
+---
+\begin{titlepage}
+\includegraphics[height=1cm]{popo.jpg}
+\hfill
+\includegraphics[height=1cm]{univ.png}
+
+\begin{center}
+
+\vspace*{2cm}
+
+
+\Huge
+Projet de statistique
+\vspace{0.5cm}
+
+\huge
+
+Classification des pays
+
+\vspace{1.5cm}
+
+\Large
+\textit{Moussa DEME - Aïba FOFANA}
+
+\vspace{2cm}
+
+
+\includegraphics[height=9cm]{b.png}
+
+\vfill
+
+\normalsize
+tuteurs :\\
+
+MR. PREDA - MR. GRIMONPREZ
+
+\vspace{0.8cm}
+
+\normalsize
+Polytech Lille\\
+Avril 2020
+
+\end{center}
+\end{titlepage}
+\pagenumbering{gobble}
+
+\tableofcontents
+\newpage
+\pagenumbering{arabic} \setcounter{page}{1}
+
+# Jeu de données
+
+## But du projet
+
+Le jeu de données correspond à la consommation de plusieurs types de vins (exprimée en KiloLitres/an) dans huit pays d'Europe et d'Amérique. Il est composé de 18 variables quantitatives (type de vins) pour 8 observations (les pays).\newline
+L'objectif de notre étude est de faire une analyse descriptive multivariée ainsi qu'une classification des pays. Pour ce faire, nous allons utiliser la méthode de l'Analyse en Composantes Principales (ACP) car nos données sont quantitatives. De plus, l'ACP nous permettra de réduire la dimension de notre jeu de données initial tout en gardant le maximum d'information, rendant ainsi facile la classification.\newline
+
+```{r, comment=""}
+vins = read.table("vins.csv", sep=",", header = TRUE, row.names = 1)
+str(vins)
+```
+
+## Pré-traitement et visualisation des données
+
+Le jeu de données dans sa version initiale présente les variables en ligne et les observations en colonne. Pour faciliter la réalisation de notre étude, nous avons donc décidé de le transposer et de le mettre dans un dataframe. En effet, l'opération de transposition met le jeu de données dans un objet de type "matrix" R, qui considère que toutes les variables sont du même type. Ici, cela n'a pas d'impact car nos variables sont toutes entières. Mais pour pouvoir référer les variables par leur nom par exemple (avec le "dollar"), un data.frame est plus adapté, ce qui explique notre choix. \newline
+Nous avons aussi remarqué que deux variables portent approximativement le même nom (les variables RHON et RHONE). N'ayant pas plus d'information, nous avons décidé de considérer ces variables comme étant distinct.
+Notre jeu de données final comporte 18 variables pour 8 observations. Un extrait de ce jeu de données est le suivant: \newline
+
+
+
+```{r,comment=""}
+vins = t(vins)
+vins = as.data.frame(vins)
+knitr::kable(vins[,sample(c(1:18),5)])
+```
+
+### Somme par ligne (individus)
+
+```{r, comment = "", echo=TRUE}
+sommeLigne = apply(vins, 1, sum)
+knitr::kable(t(sommeLigne))
+```
+
+Le pays le plus consommateur de vins de notre jeu de données est la République Fédérale D'Allemagne (RFA). En effet, 364707 KiloLitres de vins ont été consommés dans ce pays sur une année. Il est suivi du Royaume Uni (UK) et de la Belgique.
+
+
+### Somme par colonne (variables)
+
+```{r, comment = "", echo=TRUE}
+sommeCol = apply(vins, 2, sum)
+sommeCol
+
+```
+
+Le vin le plus consommé, tout pays confondu est "AUTRE_VDQS" avec 432862 kilolitres/an. Il s'agit d'un vin de qualité supérieure.
+Il est suivi par le vin "BOJOLAIS" avec 189725 kilolitres/an . 
+
+
+\newpage
+# Analyse univariée des données
+
+## Résumés numériques
+
+```{r, comment=""}
+stat_uni = function(x) {
+return(c(length(x),min(x),max(x),mean(x),median(x),sd(x)))
+}
+res_stat_uni = apply(vins, 2, "stat_uni")
+row.names(res_stat_uni) = c("Nobs", "Min", "Max", "Moyenne", "Mediane", "Ecart-type")
+knitr::kable(t(res_stat_uni), format = "markdown", align = 'r')
+
+```
+
+Ce tableau permet d’obtenir les moyennes pour chaque type de vins, les dispersions, les valeurs minimales, maximales et les médianes.\newline
+On peut voir que certains vins n'ont pas été consommés dans certains pays, leur minimum étant à zéro (vins VDQS, ANJOU, PROVENCE, MUSCAT, AOC_FORT, AUTRE_FORT).
+On constate aussi que le vin le plus consommé est "AUTRE_VDQS", qui correspond à un vin de qualité supérieur avec une moyenne de 52982.75 KiloLitres/an. Il est suivi du vin "BOJOLAIS" avec une moyenne de 23715.62	KiloLitres. La consommation des vins "AUTRE_VQS", "Bojolais", "Gironde" et "AOC_Autres" est très dispersée (variée) dans ces pays du fait des grandes valeurs des écart-types. Globalement, on peut donc dire que ces pays sont des consommateurs de vins de qualité, issus d'une zone géographique spécifique. \newline
+
+## Représentation graphique
+
+Les graphiques ci-dessous permettent de représenter la quantité de consommation des différents types de vins en fonction des pays.
+
+\newpage
+Le premier graphique ci-dessous nous donne la quantité de champagne consommée dans les huit pays de notre jeu de données. On constate que ce vin est consommé principalement au Royaume Uni et en Allemagne. Au Canada, ce vin n'est que très peu consommé. \newline
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+Pays = rownames(vins)
+vins.names = colnames(vins)
+par(mfrow=c(2,4))
+
+for(i in 1:1){
+
+  df = data.frame(Pays,consommation = vins[,i])
+  
+  p<-ggplot(data=df, aes(x=Pays, y= consommation  )) +
+    geom_bar(stat="identity", fill="steelblue",width=0.5)+
+    theme(axis.text.x = element_text(angle=70, vjust=0.5))+
+    ggtitle(paste("Consomation du vin",vins.names[i],"en fonction des pays")) + 
+    theme(
+    plot.title = element_text(color="black", 
+                          size=14, face="bold.italic"))
+  
+  plot(p)
+ 
+  
+}
+
+```
+
+Les graphiques ci-dessous constituent la consommation des vins  "MOUSSEAU_AOC", "MOUSSEAU_SIMPLE",
+"ALSACE", "GIRONDE",  "BOJOLAIS", "BORDEAUX", "RHON" et "ANJOU" (dans cet ordre) en fonction des pays. On constate que les vins MOUSSEAU_AOC sont très consommés en Belgique et en Allemagne et peu consommés en Italie et au Canada (premier graphique).\newline
+Quand au MOUSSEAU_SIMPLE, il est largement consommé en Allemagne et très peu en Suisse, au Canada et au Nederland (deuxième graphique).\newline
+40% du vin ALSACE est consommé en l'Allemagne (troisième graphique).\newline
+Le vin GIRONDE est consommé en grande quantité dans tous les pays, sauf en Italie et au Canada où les quantités restent relativement faibles (quatrième graphique). Il en est de même pour le BOJOLAIS et le BORDEAUX (cinquième graphique).\newline
+Sur le dernier graphique, donnant la quantité du vin Anjou consommée, on constate que plus de la moitié du vin Anjou est consommée au Royaume Uni.
+\newpage
+
+```{r, comment="", message=FALSE, warning=FALSE}
+library(ggplot2)
+library(ggthemes)
+library(pander)
+Pays = rownames(vins)
+plot_list = list()
+for(i in 2:9){
+  df = data.frame(Pays,consommation = vins[,i])
+  
+  p<-ggplot(data=df, aes(x=Pays, y=consommation)) +
+    geom_bar(stat="identity", fill="steelblue",width=0.5, size=0.1)+
+    theme(axis.text.x = element_text(angle=30, vjust=0.5))+
+    ggtitle(paste("Consomation du vin",vins.names[i],"en fonction des pays")) + 
+    theme(
+    plot.title = element_text(color="black", 
+                          size=14, face="bold.italic"))
+  plot_list[[i]] = p
+  par(mfrow=c(4,4))
+  print(plot_list[[i]])
+}
+```
+
+
+\newpage
+
+
+
+```{r, echo=FALSE}
+#library(cowplot)
+#par(mfrow=c(2,4))
+
+#for(i in 10:18){
+
+  #df = data.frame(Pays,consommation = vins[,i])
+
+   # geom_bar(stat="identity", fill="steelblue", width=0.5)+
+    #theme(axis.text.x = element_text(angle=70, vjust=0.5))
+  #plot(p)
+#}
+
+```
+
+
+
+
+# Analyse bivariée des données
+
+## Corrélation
+
+```{r, comment="", echo=FALSE,warning=FALSE, message=FALSE}
+library(Hmisc)
+```
+
+Pour évaluer l'inter-dépendence de plusieurs variables simultanément, nous utilisons la fonction **rcorr de R**. Celle-ci permet en effet d'évaluer en une seule étape les coefficients de corrélation et les niveaux de significativité(p.value). \newline
+
+```{r, comment=""}
+cor = rcorr(as.matrix(vins))
+cor$r
+#cor$r[which(cor$r <0, arr.ind = T)]
+```
+
+
+Le tableau ci-dessus est la matrice des corrélations. Elle donne les coefficients de corrélation linéaire des variables prises deux à deux. Il s'agit d'une succession d'analyses bivariées, constituant un premier pas vers l'analyse multivariée. \newline
+Une analyse du tableau ci dessus nous permet de constater que la plus part des corrélations sont positives et certaines sont très fortes (entre les variables BOJOLAIS et MOUSSEAU_SIMPLE, AUTRE_VDQS et MOUSSEAU_SIMPLE, GIRONDE et AOC_AUTRES, ANJOU et MUSCAT, ANJOU et AOC_FORT, AUTRE_FORT et RHONE etc) car la valeur du coefficient de corrélation dépasse les 0.8. 
+D'autres sont moyennes (entre GIRONDE et PROVENCE etc) voire faibles (entre les variables PROVENCE et MUSCAT etc).\newline
+La formule ci-dessous permet de mieux visualiser : \newline
+
+```{r, comment=""}
+symnum(cor$r, abbr.colnames=FALSE)
+```
+
+Comme indiqué dans la légende, les coefficients de corrélation entre 0 et 0.3 sont remplacés par un espace (" “); les coefficients de corrélation entre 0.3 et 0.6 sont remplacés par”.“; etc. \newline
+
+Effectuons maintenant des tests statistiques pour evaluer le niveau de confiance aux valeurs des coefficients de corrélation présentés précedemment.\newline
+
+```{r, comment=""}
+cor$P
+```
+
+Pour tester la significativité linéaire entre deux variables de notre échantillon (code ci-dessus), nous testons : $h_0$ : "il n'y a pas de corrélation linéaire entre les 2 variables" contre $h_1$ : "il existe un lien statistique et linéaire entre les 2 variables". Il s'agit d'un test paramétrique bilatéral. 
+Au risque de prèmier espèce $\alpha$ = 5%, on rejette $h_0$ si la p-value est inférieur à $\alpha$ et on favorise $h_1$ : il existe un lien linéaire entre les deux variables.\newline
+Par exemple, la p-value entre les variables "MOUSSEAU_SIMPLE" et "BOJOLAIS" est inférieure au seuil, on peut donc dire que les pays consommateurs du vin mousseau simple ont également tendance a consommé le vin bojolais(correlation positive). La corrélation entre ces deux vins est d'ailleurs très forte. 
+A l'inverse, il n'existe aucun lien statistique entre les vins bordeaux et alsace d'après l'étude de la p-value (la corrélation est d'ailleurs très faibles entre les deux variables). \newline
+
+## Graphique des corrélations
+
+
+```{r, comment="", message=FALSE, warning=FALSE}
+library(corrplot)
+corrplot(cor$r, type="upper", order="hclust", tl.col="black")
+```
+
+Les corrélations positives sont affichées en bleu et les corrélations négatives en rouge. L’intensité de la couleur et la taille des cercles sont proportionnelles aux coefficients de corrélation. A droite du corrélogramme, la légende de couleurs montre les coefficients de corrélation et les couleurs correspondantes. \newpage
+
+# Analyse en Composante Principale (ACP)
+
+
+\textbf{Principe} : L’idée à la base de l’analyse en composantes principales est de pouvoir expliquer ou rendre compte de la variance observée dans la masse de données initiales en se limitant à un nombre réduit de composantes, définies comme étant des transformations mathématiques des variables initiales. La composante (linéiare) s'écrit : $c = \mu_1 \times X_1 + \mu_2 \times X_2 + \cdots + \mu_p \times X_p$ avec $\mu = \begin{pmatrix} \mu_1 \\ \mu_2 \\ \vdots \\ \mu_p \end{pmatrix}$ des pods définissant la composante c. De plus il faut noter que ces poids sont normalisés, c'est à dire que :$\sum_{i=1}^{p} \mu_i^2 = 1$. Cette normalisation s'explique par le critère utilisé pour determiner c qui est celui de la variance maximale.
+
+Elle permet donc de synthétiser l'information(variance) contenue dans un tableau de données (n colonnes $\times$ p lignes), d'identifier une éventuelle similarité entre les individus et de determiner la liaison entre les variables.\newline
+Si tous nos coefficients de corrélation étaient aussi faibles que ceux entre les variables "TRES_FORT" et "BOJOLAIS" ou entre "RHON" et "MOUSSEAU_SIMPLE" par exemple, il n’y aurait aucun intérêt à procéder à une analyse en composantes principales de ces données. En effet, pour pouvoir extraire une composante correspondant à une fonction linéaire des variables initiales, il faut nécessairement que ces variables soient intercorrélées plus ou moins fortement.\newline
+Nous faisons donc l'ACP normée (scale.unit=TRUE) sur les 18 variables de notre jeu de données avec la fonction **PCA**.
+
+```{r, comment=""}
+library(FactoMineR)
+data.pca = PCA(vins, scale.unit=TRUE, ncp =18 , graph = FALSE)
+```
+
+L’objet créé avec la fonction **PCA** contient de nombreuses informations stockées dans de nombreuses listes et matrices différentes. Ces valeurs sont décrites dans les sections suivantes.
+
+## Nombre de Composantes principales à retenir
+
+Les valeurs propres mesurent la quantité de variance expliquée par chaque axe principal. Elles sont grandes pour les premiers axes et petites pour les axes suivants. Autrement dit, les premiers axes correspondent aux directions portant la quantité maximale de la variation du jeu de données.\newline
+Notre objectif ici est d'examiner les valeurs propres afin de déterminer le nombre de composantes principales à prendre en considération. Pour ce faire, nous allons utiliser deux méthodes.\newline
+
+**Voici un aperçu de nos valeurs propres**
+
+```{r, echo=TRUE, comment=""}
+knitr::kable(data.pca$eig)
+```
+
+
+
+### Critère de la moyenne
+
+```{r, comment=""}
+which(data.pca$eig[,1]>1)
+```
+
+Si on considère le critère de l'inertie moyenne (valeur propre > 1), qui indique que la composante principale concernée représente plus de variance par rapport à une seule variable d’origine (lorsque les données sont standardisées), on constate qu'il faudrait garder les quatre premières composantes principales. Ces quatre composantes expliquent près de 90% de la variance. \newline
+
+### Graphique des valeurs propres
+
+```{r, echo=TRUE, comment="", warning=FALSE, message=FALSE}
+library(factoextra)
+fviz_eig(data.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+Une autre méthode pour déterminer le nombre de composantes principales est de regarder le graphique des valeurs propres ci-dessus. Le nombre d’axes est déterminé par le point, au-delà duquel les valeurs propres restantes sont toutes relativement petites et de tailles comparables.\newline
+Au vu du graphique, on peut garder les trois premières composantes qui expliquent 82,3% de l'information contenue dans la variance.\newline
+Le but etant de reduire au maximum la dimension de notre jeu de données tout en gardant la variance maximale, **on peut donc raisonnablement retenir trois composantes principales**. Du reste, la dimension 3, c'est à dire l'espace, permet une très bonne visualisation de l'information contenue dans notre jeu de données.
+
+
+## Interprétation des axes par rapport aux variables
+
+
+```{r, comment ="", warning=FALSE}
+data.pca$var
+```
+
+Notons que les variables contribuant le plus à la formation des axes sont celles dont la coordonnée (et donc la corrélation) sur l'axe concerné sont proches de 1 en valeur absolue.\newline
+On regarde également les variables pour lesquelles la contribution est supérieure à la contribution moyenne, c'est à dire à la somme des contributions/n (ici 100/18 = 5.6).\newline
+
+### Premier axe
+
+```{r, comment=""}
+library(factoextra)
+fviz_contrib(data.pca, choice = "var", axes = 1, top = 18)
+
+```
+
+\textbf{Obtenir la somme des contributions des variables contribuant au delà de la moyenne}
+
+```{r,comment=""}
+sum(data.pca$var$contrib[which(data.pca$var$contrib[,1] >=  sum(data.pca$var$contrib[,1])/ncol(vins)),1])
+
+```
+
+
+\textbf{Obtenir les variables ayant une coord > 0}
+
+```{r,comment=""}
+
+which(data.pca$var$coord[,1]>=0)
+
+```
+
+
+L'axe 1 est expliqué principalement par les variables GIRONDE, VDQS, AOC_AUTRES, ANJOU, AUTRE_VDQS, MOUSSEAU_SIMPLE, BOJOLAIS et  MOUSSEAU_AOC dont les contributions (contrib) cumulées font 62,44 : Ces huit variables expliquent 62,44% de l'information contenue dans la première dimension. La contribution des deux derniers vins (AOC_FORT et MUSCAT) est plus importante sur l'axe 2, nous ne les retenons donc pas sur l'axe 1.\newline
+Cet axe regroupe du même côté ces vins (signe coord > 0), qui sont presque toutes très corrélées (cor) avec l'axe 1 (0.95 pour GIRONDE). Ils seront globalement bien représentés sur cet axe car leur qualité de représentation ($cos^2$) est pour la plupart bonne.\newline
+Cet axe regroupe ensemble les différents types de vins rouges (95% de la production des vins bojolais est rouge) et pétillants (mousseux simple et aoc) principalement, issus d'une zone géographique déterminée et ne pouvant être reproduit hors de cette zone (cela implique qu'il y aurait un lien entre le caractère du vin et sa provenance). Il s'agit des vins de qualité produits dans une région déterminée, comprenant les vins d'Appelation d'Origine Contrôlée (AOC) et des Vins Délimités de Qualités Superieurs (VDQS).\newline
+La variable  GIRONDE a un rayon vecteur important sur cet axe 1, elle sera donc la mieux représentée. A l'inverse, la varible AUTRE_VDQS a un rayon vecteur petit. 
+
+### Deuxième axe
+
+```{r, comment=""}
+fviz_contrib(data.pca, choice = "var", axes = 2, top = 18)
+```
+
+
+\textbf{Obtenir la somme des contributions des variables contribuant au delà de la moyenne à l'axe 2 exclusivement}
+
+```{r,comment=""}
+sum(data.pca$var$contrib[which(data.pca$var$contrib[,2] 
+                               >= sum(data.pca$var$contrib[,2])/18),2])- # Enlève les v.a ret à axe 1
+                              sum(data.pca$var$contrib[which
+                              (data.pca$var$contrib[,1] >=  
+                               sum(data.pca$var$contrib[,1])/ncol(vins) &
+                               data.pca$var$contrib[,2] >= 
+                               sum(data.pca$var$contrib[,2])/18),2])
+
+```
+
+\textbf{Obtenir les variables ayant une coord > 0}
+
+```{r,comment=""}
+which(data.pca$var$coord[,2]>=0)
+
+```
+
+L'axe 2 est dû en grande partie aux variables ALSACE, MUSCAT, AOC_FORT, PROVENCE et TRES_FORT (les autres vins ont été retenus sur l'axe 1), qui contribuent à 63,2% à la formation de cet axe (on enlève en effet les contributions des vins retenus sur l'axe 1). L'axe 2 sépare le vin alsace (côté positif) des quatre autres vins (côté négatif). En effet, cet axe differencie les différents types de vins "clairs" (vins blancs, vins rosés etc.).
+La corrélation entre cet axe et ces vins est négative, sauf pour la variable ALSACE pour laquelle elle est positive et forte. Globalement, les vins ne sont pas bien représentés sur cet axe car les $cos^2$ sont relativement faibles. \newline
+
+### Troisième axe
+
+```{r, comment=""}
+fviz_contrib(data.pca, choice = "var", axes = 3, top = 18)
+```
+
+
+\textbf{Obtenir la somme des contributions des variables contribuant au delà de la moyenne à l'axe 3 exclusivement}
+
+```{r,comment=""}
+sum(data.pca$var$contrib[which(data.pca$var$contrib[,3] 
+                               >= sum(data.pca$var$contrib[,3])/18),3])- # Enlève les v.a retenues axe 1
+                                sum(data.pca$var$contrib[which
+                              (data.pca$var$contrib[,1] >=  
+                               sum(data.pca$var$contrib[,1])/ncol(vins) &
+                               data.pca$var$contrib[,3] >= 
+                               sum(data.pca$var$contrib[,3])/18),3])
+                              -sum(data.pca$var$contrib[which  # Enlève les v.a ret axe 2
+                              (data.pca$var$contrib[,2] >=  
+                               sum(data.pca$var$contrib[,2])/ncol(vins) &
+                               data.pca$var$contrib[,3] >= 
+                               sum(data.pca$var$contrib[,3])/18),3])
+```
+
+\textbf{Obtenir les variables ayant une coord > 0}
+
+```{r,comment=""}
+which(data.pca$var$coord[,3]>=0)
+```
+
+L'axe 3 est formé grâce aux variables CHMPAGNE, RHON,RHONE, BORDEAUX et AUTRE_FORT (les autres ont été retenues sur les deux premiers axes) dont les contributions atteignent 71,26% ((on enlève en effet les contributions des vins retenus sur les axe 1 et 2). Cet axe separe les vins champagne et bordeaux (côté négatif de l'axe, vins de renommé) des vins rhône, rhon et autre_fort. Les vins du rhône sont à 61% blancs, les vins bordeaux sont connus pour être rouges (89% de la production) et les vins champagnes sont à 90% mousseux : on peut donc dire que cet axe sépare les vins rouges et mousseux des vins blancs.\newline
+Malheuresement, ce n'est pas sur cet axe que le vin bordeaux contribue le plus. En effet, sa contribution à l'axe 5 est de 47.24 (contre 7.46 sur l'axe 3). Les vins seront globalement mal représentés sur cet axe.
+
+### Cercle de corrélation
+
+Le graphique ci-dessous correspond au cercle de corrélation des variables, avec une coloration en fonction de la contribution des variables. Il montre les relations entre les composantes et les vins qui contribuent le plus à la formation des axes.\newline
+Sur ce cercle de corrélation formé par les 2 premiers facteurs, on observe  que les vins se projettent toutes du même côté de l’axe 1 : il s'agit d'un effet taille (elles contribuent toutes dans le même sens à la formation de l'axe 1). Elles sont donc toutes corrélées positivement avec la dimension horizontale. L’axe 1 est donc un axe d’échelle entre les fortes consommations de certains vins et les faibles consommations de ces mêmes vins. \newline
+La deuxième composante différencie alors les individus de "taille" semblable : on parle d'effet forme.\newline
+Du fait de « l’effet taille » sur l’axe 1, on en déduit que cet axe oppose essentiellement les pays ayant une forte consommation des vins GIRONDE, VDQS, AOC_AUTRES,ANJOU,AUTRE_VDQS etc (i.e. tous les vins de l'axe 1) à ceux ayant de faibles consommations de ces mêmes types de vins.\newline
+Sur ce graphique, on peut également voir que certaines variables sont très fortement corrélées(AOC_FORT et MUSCAT par exemple) et d'autres ont une corrélation faible (ALSACE et ANJOU par exemple)
+
+```{r, echo=TRUE, comment=""}
+fviz_pca_var(data.pca,
+             col.var = "contrib", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE,     
+             )
+```
+
+
+
+Nous pouvons aussi visualiser le $cos^2$ des variables sur toutes les dimensions en utilisant le package corrplot.\newline
+Un $cos^2$ élevé indique une bonne représentation de la variable sur les axes principaux en considération. Dans ce cas, la variable est positionnée à proximité de la circonférence du cercle de corrélation.
+A l'inverse, un faible cos2 indique que la variable n’est pas parfaitement représentée par les axes principaux. Dans ce cas, la variable est proche du centre du cercle.\newline
+Le code R est le suivant : 
+
+```{r, comment="", message=FALSE, warning=FALSE}
+library("corrplot")
+corrplot(data.pca$var$cos2, is.corr=FALSE)
+```
+
+
+## Interprétation des axes par rapport aux individus
+
+```{r, comment ="", warning=FALSE}
+data.pca$ind
+```
+
+Ci-dessus les contributions des individus aux axes, leurs coordonées et qualités de représentation. \newline
+
+### Premier axe
+
+```{r, comment=""}
+fviz_contrib(data.pca, choice = "ind", axes = 1, top = 8)
+```
+
+\textbf{Obtenir la somme des contributions des variables contribuant au delà de la moyenne}
+
+```{r,comment=""}
+sum(data.pca$ind$contrib[which(data.pca$ind$contrib[,1] >= sum(data.pca$ind$contrib[,1])/8),1])
+```
+
+L'axe 1 est formé du Canada, du United Kingdom (UK), de l'Italie et de l'Allemagne (RFA). Ces quatres individus contribuent à 87,45% à la formation de cet axe (UK est le pays qui contribue le plus). Il s'agit d'un axe de séparation des pays RFA et UK (du côté positif) des deux autres (côté négatif). En effet, les coordonées de ces derniers sur cet axe sont négatifs car la quantité de vins (constituant l'axe 1) consommés dans ces pays est faible. De plus, nous pouvons dire que l'Allemagne et le Royaume Uni sont des pays consommateurs de vins provenant d'une région géographique spécifique (en grande quantité), contrairement aux deux autres pays pour lesquels la consommation de ce type de vins est faible. \newline 
+Néanmoins, l'individu RFA est le plus mal représenté sur cet axe.\newline
+
+### Deuxième axe
+
+```{r, comment=""}
+fviz_contrib(data.pca, choice = "ind", axes = 2, top = 8)
+```
+
+\textbf{Obtenir la somme des contributions des variables contribuant au delà de la moyenne}
+
+```{r, comment=""}
+sum(data.pca$ind$contrib[which(data.pca$ind$contrib[,2] >= sum(data.pca$ind$contrib[,2])/8),2])
+```
+
+
+L'axe 2 : ce sont les individus RFA et UK qui contribuent le plus à la formation de cet axe (à 96.83%). Il s'agit également d'un axe de séparation : RFA du côté positif qui est moyennement bien représenté et UK du côté négatif, mal représenté ($cos^2$ faible). Il y a donc une différence entre les types de vins "clairs" consommés dans ces deux pays. En effet, les allemands ont tendance à consommer du vin d'alsace alors que chez les anglais, il s'agit des vins MUSCAT, AOC_FORT, TRES_FORT et PROVENCE \newline
+
+### Troisième axe
+
+```{r, comment=""}
+fviz_contrib(data.pca, choice = "ind", axes = 3, top = 8)
+```
+
+
+\textbf{Obtenir la somme des contributions des variables contribuant au delà de la moyenne}
+
+```{r, comment=""}
+sum(data.pca$ind$contrib[which(data.pca$ind$contrib[,3] >= sum(data.pca$ind$contrib[,3])/8),3])
+```
+
+Sur l'axe 3, ce sont les pays USA et NEDERLAND qui contribuent le plus (à 84%). Cet axe oppose les États-Unis (consommateurs de vins champagne et bordeaux) aux Pays-Bas (consommateurs de vins du rhône, rhon et des autres vins forts).\newline
+C'est à la formation de l'axe 4 que la Belgique contribue, mais nous n'avons pas gardé cet axe dans notre analyse.\newline
+
+
+### Nuage des individus
+
+```{r, comment ="", warning=FALSE}
+fviz_pca_ind(data.pca,
+             col.ind = "cos2", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     
+             )
+```
+
+Au vu du graphique, nous pouvons dire que les types de vins consommés en Italie sont les mêmes qu'au Canada (individus similaires). Le Canada et le Royaume Uni ont des types de consommations inverses.\newline
+Le nuage des individus nous montre qu'il existe quatre classes au moins. La première classe serait constituée de l'Italie, du Canada, des USA et de la Suisse. La deuxième quant à elle contiendrait le Nerderland et la Belgique. Les troisième et quatrième seraient des singletons et contriendrait la RFA et UK. Nous effectuerons la classification plus tard pour approfondir notre réflexion.\newline
+
+## Biplot des individus et des variables
+
+```{r, comment=""}
+fviz_pca_biplot(data.pca, repel = TRUE,
+                col.var = "#2E9FDF", 
+                col.ind = "#696969"  
+                )
+```
+
+Globalement, le biplot peut être interprété comme suite:\newline
+- un individu qui se trouve du même côté d’une variable donnée a une valeur élevée pour cette variable;\newline
+- un individu qui se trouve sur le côté opposé d’une variable donnée a une faible valeur pour cette variable.\newline
+Ainsi, on voit que les pays comme l'Italie, la Suisse, les USA et le Canada ont des quantités faibles pour tous les types de vins. Il s'agit d'invidus simialires. RFA aura des quantités faibles pour les vins comme AOC_FORT, TRES_FORT, AUTRE_FORT etc... et des quantités fortes pour le vin BOJOLAIS par exemple. Au Royaume Uni (UK), ce sont les vins ANJOU et AOC_FORT qui sont principalement consommés et les vins de PROVENCE par exemple ne sont que très peu consommés.\newpage
+
+
+# Classification
+
+Nous avons realiser l'ACP sur notre jeu de données et nous avons fait le choix des 3 premiers axes factoriels qui contiennent plus 82% de l'information des données brutes. Nous appliquerons dans la suite une **classification hierarchique ascandente** en utilisant la sortie de notre **ACP** realisée ci-dessus et la fonction **HCPC** de R. A l'issu de l'ACP, nous avons intuitivement détecté l'existence de quatre classes. Cependant nous allons s'en tenir au nombre de classes optimales proposé par le logiciel R. \newline
+Notre objectif est de  régrouper les pays ayant des profils de consommation similiaire. Pour ce faire, nous allons construire nos classes de manière à miniser la variance intra-classe et à maximer la variance inter-classe (il faut que les individus de deux classes différentes aient des profils différents).\newline
+On met nb.clust à -1 car nous ne savons pas à priori en combien de classes nous allons séparer notre jeu de données, on laisse donc le logiciel décider.\newline
+D'abord, refaisons l'ACP avec les trois premiers axes.
+
+```{r, comment ="", warning=FALSE}
+library(FactoMineR)
+data.pca = PCA(vins, scale.unit=TRUE, ncp =3 , graph = FALSE)
+```
+
+## Nombre de classes proposé par R
+
+```{r, comment=""}
+hcpc=HCPC(data.pca
+          ,nb.clust=-1
+          ,proba=1,method = "ward",graph = FALSE)
+hcpc$call$max
+```
+
+Le logiciel R nous propose de faire une partition en quatre (4) classes. Dans cette partition, nous avons deux classes qui contiennent qu'un seul pays chacune. Nous avons donc décidé de garder ces quatre classes malgré l'existence de deux singletons. En effet, plus le nombre de classes est élévé, plus la classification est bonne, c'est à dire plus la variance inter-classe est grande.
+
+
+## Gain d'inertie
+
+Le graphique suivant est aussi utilisé pour le choix du nombre de classes lors d'une classification ascendente hierarchique, il s'agit du graphique du **gain d'inertie inter-classe**.
+
+```{r,echo=FALSE,comment=""}
+plot(hcpc, choice="bar")
+```
+
+En analysant ce graphique, on se rend compte que le passage d'une classe unique à deux classes permet de gagner enormement en inertie inter-classe. Il en est de même de 2 à 3 et 3 à 4. Par contre un nombre de classe au déla de quatre (4) a très peu d'intêret (très faible gain en inertie inter-classe). Et d'ailleurs on remarque qu'il est incensé de faire plus de 8 classe puisqu'on a que huit individus. 
+
+# Composition des classes et paragons
+
+Dans cette partie, nous allons découvrir pour chaque classe, le nombre de pays affecté ainsi que les noms de ces pays. De plus pour chaque classe, nous determinerons le **paragon** c'est à dire l'individu le plus proche du centre de gravité de cette classe ou tout simplement l'individu qui caracterise la classe.
+
+## Première classe 
+
+Pour connaitre les pays qui composent cette classe, voyons le tableau ci-dessous, 
+
+```{r,echo=FALSE,comment=""}
+ind.per.class = function(hcpc,i){ 
+
+# hcpc correspond à l'objet R obtenu en appliquant la fonction HCPC et i correspond au numero de la classe.
+  
+  i = as.character(i)
+  
+  c = which(hcpc$data.clust$clust== i ) # Obtention de l'indice des     individus respectant la condition.
+  
+  pays = row.names(hcpc$data.clust[c,])
+  
+  x = cbind(pays,hcpc$data.clust[c,]$clust)
+  
+  colnames(x)<- c("Pays","Classe")
+  
+  return (x)
+}
+
+knitr::kable(ind.per.class(hcpc,1))
+```
+
+Nous pouvons donc observer que cette première classe est composée de quatre(4) pays à savoir l'**Italie** , la **Suisse**, les **USA** et le **Canada**. Mais quel est le paragon de cette classe ? Voyons le tableau suivant :
+
+```{r, comment=""}
+hcpc$desc.ind$para$`1`
+```
+
+Ce tableau nous résume les ecarts entre chaque individu (pays) et le centre de gravité de la classe. Le pays ayant le plus petit écart correspond au paragon. Ainsi donc l'**Italie** est le paragon de cette première classe. En d'autres termes, l'Italie est le pays qui caracterise le mieux cette classe.
+
+## Deuxième classe
+
+Observons le tableau ci-dessous 
+
+```{r,echo=FALSE,comment=""}
+
+knitr::kable(ind.per.class(hcpc,2))
+```
+
+Nous constatons que cette deuxième classe est constituée de deux pays à savoir la **Belgique** et les **Pays-bas** (Nederland). Nous pouvons aussi constater dans le tableau ci-dessous que les deux pays sont equidistant du centre de gravité de la classe, ce qui est logique puisqu'on a que deux points (individus ayant le même poids) et donc le centre de gravité correspond au milieu du segment qui les separent :  ils sont donc tous des paragons de cette classe, c'est à dire que l'un ou l'autre caracterise la classe.
+
+
+```{r, comment=""}
+hcpc$desc.ind$para$`2`
+```
+
+## Troisième classe
+
+Cette classe est composé d'un seul pays qui est la **République Fédérale de l'Allemagne**(RFA). On peut vérifier cela dans le tableau ci-dessous. Etant composé d'un seul pays (individu), le paragon de cette classe est bien evidemment l'individu, lui seul qui caracterise sa classe.
+
+```{r, comment=""}
+knitr::kable(ind.per.class(hcpc,3))
+```
+
+## Quatrième classe
+
+Nous savons que sept pays sur huit ont été classés dans les trois premières classes, donc cette classe sera composé d’un seul pays qui est le **Royaume Uni(UK)**. On peut vérifier cela dans le tableau ci-dessous. Etant composé d’un seul pays (individu), le paragon de cette classe est bien evidemment l’individu, lui seul qui caracterise sa classe.
+
+```{r, comment=""}
+knitr::kable(ind.per.class(hcpc,4))
+```
+
+## Graphique récapitulatif (dendogramme)
+
+La répartition des pays par classe peut être visualisée par un graphique : le **dendogramme** en dimension 2 ou 3.
+
+Dans le plan ou en dimension 2 on obtient le graphique suivant: 
+
+```{r, comment=""}
+plot(hcpc,choice="tree")
+```
+
+Nous pouvons bien observer et en même temps les quatres classes avec leur composition.  
+
+Dans l'espace ou en dimension 3, nous avons :
+
+```{r,echo=FALSE}
+plot(hcpc,choice="3D.map")
+
+```
+
+Ce graphique,beaucoup plus riche en information permet en plus de la compostion des classes de connaitre le score d'un pays pour les deux premières composantes principales formées à l'issue de l'ACP. Ainsi on peut constater que la première classe est formée par les pays ayant un mauvais score pour les deux dimensions pendant que la deuxième classe est caractérisée par de bons scores pour la dimension 2 et la troisième classe est caractérisée par les pays ayant un score élévé pour la dimension 1 etc. Le dendogramme en dimension 3 nous a ainsi permis d'introduire la caracterisation des classes que nous allons développer dans la section suivante.
+
+
+# Caracterisation des classes 
+
+Comme annoncé précedemment, nous allons analyser de plus près la differenciation d'une classe à l' autre. Il s'agira de donner un sens à chaque classe. Pour cela nous allons dans un premier temps, identifier les facteurs qui caracterisent le mieux chaque classe et deuxièmement descendre plus en profondeur en essayant de trouver les types de vins qui differencient vraisemblablement chacune des quatre classes. Notons quand même que ces analyses se baseront sur un test statistique : la **valeur test** qui est décrit dans la sous section suivante.
+
+## Valeur test
+
+La valeur test correspond au test d'egalité entre deux moyennes de deux echantillons differentes. Le premier echantillon correspond à la base de donnée initiale et le deuxième correspond aux individus affectés à une classe i donnée (i $\in$ {1,2,3,4}). \newline
+Soit **n** le nombre d'individus de l'echantillon 1(tous les individus) et **$n_g$** celui des individus de la classe i (sous ensemble de l'echantillon 1)($n_g$ < n). Considerons une variable quantitative **X** de notre jeu de données, $\mu$ sa moyenne dans l'echantillon global et $\mu_g$ dans la classe i.$\\$ La valeur test(statistique de test) est definie de la manière suivante : $$t_c = \frac{\mu_g -  \mu}{\sqrt{\frac{n-n_g}{n-1}\times \frac{\sigma^2}{n_g}}}  \hookrightarrow \text{N(0,1)} $$
+L'hypothèse nulle de ce test est : $H_0$ : $\mu_g = \mu$ et la contre hypothèse est  $H_1$ : $\mu_g \ne \mu$. $\\$ En prenant le niveau de risque $\alpha =$ 5% , on a :
+\begin{itemize}
+\item Si |$t_c$| > 1.96, alors X caracterise la classe i considéré.
+\item X caracterise d'autant mieux la classe i que |$t_c$| est grande.
+\end{itemize}
+Nous analyserons ce test pour chacune des dimensions rétenues ou variables de notre jeu de donnée (c'est à dire chaque type de vin) et pour chacune des 4 classes.
+
+## Analyse des classes par rapport aux facteurs
+
+### Première classe
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.axes$quanti$`1`) 
+```
+
+En analysant le tableau ci-dessus, nous conctatons que la valeur test est significative (p.value<5%) que pour la première dimension avec une valeur **v.test** de -2.34 < 0. Ce qui veut dire que les individus de la première classe sont caracterisés par un mauvais score pour le premier axe factoriel. On peut verifier cela avec le score de l'Italie qui est le paragon de la classe.
+
+```{r,echo=FALSE,comment=""}
+data.pca$ind$coord[,1]
+```
+
+On remarque effectivement que l'ITALIE a le plus mauvais score pour la dimension 1 et tous les autres individus de cette classe à savoir CANADA, SUISSE et USA ont un mauvais score.
+
+### Deuxième classe
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.axes$quanti$`2`)
+```
+
+Nous remarquons qu'avec un risque de première espèce de 5%, la valeur test est significative que pour la dimension 3. En allant plus loin dans l'analyse, nous conctatons que la valeur **v.test** pour l' axe factoriel 3 vaut 1.96. Cela s'interprète par le fait que les individus de cette deuxième classe sont caracterisés par un bon score pour la dimension 3.
+
+
+### Troisième classe 
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.axes$quanti$`3`)
+```
+
+En analysant le tableau précedent, nous remarquons que la valeur test est significatif que pour la dimension 2 (p.value<5%). Par ailleurs la valeur **v.test** vaut 2.24. Cela veut dire que les individus de cette classe sont caracterisés par un très bon score pour la dimension 2. 
+
+### Quatrième classe 
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.axes$quanti$`4`)
+```
+
+D'après le tableau précédent, la valeur test n'est significatif pour aucune des dimensions. En prenant plus de risque, 15% comme risque de première espèce, on constate que le test est significatif pour la dimension 1 et 2. En allant plus loin dans l'analyse, nous conctatons que les valeurs **v.test** pour les axes factoriels 1 et 2 valent respectivement 1.53 et -1.61. Cela s'interprète par le fait que l'individu de cette quatrième classe est caracterisé par un bon score pour la dimension 1 et un mauvais score pour la dimension 2.
+
+   
+
+## Analyse des classes  par rapport aux vins (variables)
+
+### Première classe
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.var$quanti$`1`)
+```
+
+Apres une analyse du tableau ci dessus , nous constatons que le test est significatif (c'est à dire que  p.value < 5% ) pour les vins \textbf{RHONE}, **VDQS**, \textbf{GIRONDE} et **AOC_AUTRES**. Pour les autres types de vins, le test est non significatif et cela veut dire que la consommation des pays de ce groupe ne diffèrent pas significativement de celle des autres pour les autres types de vins. La classe sera donc  caracterisée par le niveau de consommation de ces quatre type de vins. Les pays de cette classe sont-ils de grand consommateurs de vins? Voyons voir ! $\\$
+
+Pour mieux caracteriser cette classe, nous regarderons les valeurs **v.test** pour chaque type de vin. Nous observons donc que pour tous ces quatre types de vins la valeur **v.test** est negative , comprise entre -2,56 et -2. Une valeur négative pour v.test signifie que les individus de cette classe consomment moins en moyenne que les autres. Nous tirons donc la conclusion selon laquelle , le groupe 1 est caracterisé par les **pays à faible consommation de vins de types RHONE, VDGS, GIRONNE et AOC_AUTRES **.
+
+Par ailleurs, on remarque que la valeur **v.test** est negative aussi pour toutes les autres types de vins et cela veut dire que les pays du groupe 1 sont de faible consommateurs de vins en moyenne tout type de vins confondus. En conclusion, le groupe 1 est constitué par les **pays les moins consommateurs de vins**.
+
+### Deuxième classe
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.var$quanti$`2`)
+```
+
+En analysant ce tableau, nous constatons que la valeur test n'est significatif pour aucun type de vins. En prenant un seuil de 10% par exemple, le test devient significatif pour les vins **RHONE** et **AOC_AUTRES** $\\$
+
+En outre, pour ces deux types de vins, la valeur **v.test** est strictement positive (1.656 et 1.654). Il s'en suit donc que le groupe 2 est caracterisé par les **pays fortement consommateur de AOC_AUTRES et de RHONE **. 
+
+Nous constatons de plus pour les autres types de vins que la valeur **v.test** est positive pour certains et négatif pour d'autres. Cela signifie qu'en moyenne les pays de ce groupe consomme plus certains type de vins (TRES_FORT, GIRONDE, RHON...) au detriment des autres (BOJOLAIS,CHAMPAGNE...) comparativement aux autres pays. 
+
+### Troisième classe 
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.var$quanti$`3`)
+```
+
+En analysant ce tableau, nous constatons que la valeur test est significatif pour les vins de type **ALSACE**, **AUTRES_VDQS**, **BOJOLAIS**, **PROVENCE** et **MOUSSEAU_SIMPLE**.  $\\$
+
+De plus nous observons que la valeur v.test est positive pour tous ses cinq types de vins. Donc cette classe est caractérisée par les **pays les plus grands consonmateurs de vins** particulièrement les cinq types de vins cités ci-dessus. AUTRES_VDQS et BOJOLAIS qui sont les deux types de vins les plus consonsommés font partis des cinq. On comprend pourquoi cette classe est composé uniquement de la **République Fédérale de l'Allemagne** qui est par ailleurs le pays le plus consonmmateurs de vins tous types de vins confondus !
+
+### Quatrième classe 
+
+```{r,comment="",echo=FALSE}
+knitr::kable(hcpc$desc.var$quanti$`4`)
+```
+
+En analysant ce tableau, nous constatons que la valeur test est significatif pour les vins de type **AOC_FORT**, **MUSCAT** et **ANJOU**.  $\\$
+
+De plus nous observons que la valeur v.test est positive (mais rélativement faible comparativement aux valeurs pour la troisième classe) pour tous ses trois types de vins. Donc cette classe est caractérisée par les **pays consonmateurs de vins modérés** en général mais grand consommateurs des trois types de vins cités ci-dessus (**AOC_FORT**, **MUSCAT** et **ANJOU**). 
+
+
+# Recapitulation de la classification (CAH)
+
+Nous recapitulons notre classification ascendente hierarchique dans le tableau suivant :
+
+```{r,echo=FALSE,comment=""}
+col.noms = c("Classe","Caractérisation","Pays membres")
+r1 = c(1,"Faible consommateur de vins","ITALIE, SUISSE, USA et CANADA")
+r2 = c(2,"Gros consommateur de vins ciblés","NEDERLAND et BELGIQUE")
+r3 = c(3,"Gros consommateur de vins","RFA")
+r4 = c(4,"Consommateur de vins modéré","UK")
+recap = data.frame(rbind(r1,r2,r3,r4))
+colnames(recap) =col.noms
+knitr::kable(recap,row.names = FALSE)
+```
+
+# Renforcement de la classification 
+
+## Algorithme des centres mobiles (k means)
+
+On peut consolider/améliorer les regroupements obtenus via l’algorithme de CAH en utilisant l’algorithme des centres mobiles. On prend alors pour centres initiaux les parangons obtenus lors de la CAH. Il est donc possible que des individus changent de groupes.
+
+
+```{r, comment=""}
+hcpc.consol = HCPC(data.pca,nb.clust = -1, consol = T,graph = F)
+plot(hcpc.consol)
+```
+
+Nous obtenons exactement les mêmes classes que la CAH non consolidé. Donc celle-ci est meilleure.\newline
+
+## Méthode des distances
+
+Cette méthode est plus fine que les k-means car elle va regrouper sur le critère de la distance (la plus petite) séparant chaque point.\newline
+Nous commençons par calculer les distances euclidiennes:\newline
+
+```{r, comment=""}
+dis = dist(vins, method="euclidean")
+dis
+```
+
+Ensuite, nous mettons en place les clusters (en prenant 4 classes) \newline
+
+```{r, comment=""}
+myclust = hclust(dis, method="ward.D2")
+plot(myclust)
+rect.hclust(myclust,4,border="blue")
+```
+
+ou encore avec la fonction eclust :
+
+```{r, comment=""}
+myclust = eclust(dis,k=4)
+myclust$cluster
+```
+
+La méthode de la distance nous propose quatre classes : \newline
+- une classe avec la Belgique, le Nederland, les USA et le Canada, \newline
+- une classe avec UK, \newline
+- une classe avec RFA, \newline
+- et une classe avec l'Italie et la Suisse. \newline
+La classification proposée est donc différente de celle proposée par la CAH ou par la méthode des k-means.
+\newpage
+
+
+
+
+# Conclusion
+
+Nous avons vu que le premier facteur est corrélé positivement, et assez fortement avec presque toutes les variables du jeu de données : plus un pays consomme du vins, plus il a un score élévé sur cet axe.\newline
+Le deuxième facteur quant à lui  différencie les individus de "taille" semblable.\newline
+Réaliser d'abord l'ACP sur notre jeu de données a eu plusieurs avantages dans la réalisation de notre classification.\newline
+D'abord, elle a permis de réduire considérablement la dimension de 18 à 3. Sur un petit jeu de données comme celui à notre disposition, la différence est minime mais sur un plus grand avec des milliers de lignes et de colonnes, celà peut être un atout énorme.\newline
+Ensuite, nous avons eu une idée des vins ainsi que des pays qui étaient les mieux représentés sur chacune des dimensions. En faisant cela, nous avons su quel était le profil de chaque pays et donc avoir une idée du caractéristique des clusters. À l'issu de l'ACP, le nuage des individus permettait de distinguer intuitivement quatre (4) groupes de pays. Cela a été confirmé par la classification avec la CAH et les autres.\newline
+Les individus du groupe 1 (Italie, Canada, Suisse et USA) ne consomment que très peu de vins (comparativement aux autres pays réprésentés dans notre jeu de données). Il suffit de regarder les données du paragon de cette classe (Italie) pour s'en rendre compte.\newline
+Les individus du groupe 2 (Belgique, Nederland) sont des consommateurs des vins du rhône et des autres vins AOC.\newline
+Le groupe 3 ne contient que RFA, dont les habitants consomment principalement les vins ALSACE, AUTRES_VDQS, BOJOLAIS, PROVENCE et MOUSSEAU_SIMPLE.\newline
+Enfin, le groupe 4 est représenté par UK, consommateur des vins AOC_FORT, MUSCAT et ANJOU.\newline
+Comme perspective, il serait interesser de mener une analyse comparative des resulats de plusieurs méthodes de classification, la CAH et la methode des distances notomment pour comprendre les differences et surtout choisir la bonne classification selon bien entendu un critère.
+
+
+
+
+
+
+
+
+
